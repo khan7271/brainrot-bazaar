@@ -67,7 +67,7 @@ function BaseService.findFreeSlot(player)
 	if not data then
 		return nil
 	end
-	for slot = 1, GameConfig.SLOTS_PER_BASE do
+	for slot = 1, BaseService.getMaxSlots(player) do
 		if not data.Brainrots[slot] then
 			return slot
 		end
@@ -76,7 +76,8 @@ function BaseService.findFreeSlot(player)
 end
 
 -- Place a bought brainrot on the player's base and build its model there.
-function BaseService.placeBrainrot(player, character, mutationName)
+function BaseService.placeBrainrot(player, character, mutationName, incomeMultiplier)
+	local multiplier = incomeMultiplier or 1
 	local index = BaseService.getBaseIndex(player)
 	if not index then
 		return false, "You have no base yet."
@@ -86,7 +87,7 @@ function BaseService.placeBrainrot(player, character, mutationName)
 		return false, "Your base is full!"
 	end
 	local data = PlayerDataService.getPlayerData(player)
-	local income = BrainrotData.incomeOf(character, mutationName)
+	local income = math.floor(BrainrotData.incomeOf(character, mutationName) * multiplier)
 	data.Brainrots[slot] = {
 		CharacterName = character.Name,
 		Mutation = mutationName,
@@ -167,6 +168,56 @@ function BaseService.countBrainrots(player)
 		count += 1
 	end
 	return count
+end
+
+-- Slots a player can use: six to start, +2 per base upgrade tier.
+function BaseService.getMaxSlots(player)
+	local data = PlayerDataService.getPlayerData(player)
+	local tier = data and data.BaseTier or 0
+	return GameConfig.SLOTS_PER_BASE + tier * GameConfig.BASE_UPGRADE_EXTRA_SLOTS
+end
+
+-- Buy the next base upgrade tier: more slots for a growing collection.
+function BaseService.buyBaseUpgrade(player)
+	local data = PlayerDataService.getPlayerData(player)
+	if not data then
+		return false, "No player data."
+	end
+	local tier = data.BaseTier
+	if tier >= GameConfig.BASE_MAX_TIER then
+		return false, "Your base is already fully upgraded!"
+	end
+	local price = GameConfig.BASE_UPGRADE_PRICES[tier + 1]
+	if data.Cash < price then
+		return false, "Base upgrade costs $" .. price .. "."
+	end
+	if not PlayerDataService.spendCash(player, price) then
+		return false, "Could not pay."
+	end
+	data.BaseTier += 1
+	local event = ReplicatedStorage:FindFirstChild("NotifyPlayer")
+	if event then
+		event:FireClient(player, "Base upgraded to tier " .. data.BaseTier .. "! You now have " .. BaseService.getMaxSlots(player) .. " slots.")
+	end
+	return true, "Base upgraded to tier " .. data.BaseTier .. "!"
+end
+
+-- Seconds left on a player's base lock, or 0 when it is not locked.
+function BaseService.getLockTimeLeft(player)
+	local data = PlayerDataService.getPlayerData(player)
+	if not data then
+		return 0
+	end
+	return math.max(0, data.BaseLockUntil - os.time())
+end
+
+-- A one-line summary of a base for the HUD: slots used / slots owned.
+function BaseService.getBaseSummary(player)
+	local data = PlayerDataService.getPlayerData(player)
+	if not data then
+		return "No base"
+	end
+	return BaseService.countBrainrots(player) .. "/" .. BaseService.getMaxSlots(player) .. " slots (tier " .. data.BaseTier .. ")"
 end
 
 return BaseService

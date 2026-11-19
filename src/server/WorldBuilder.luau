@@ -160,11 +160,12 @@ function WorldBuilder.buildBasePlot(folder, index, ownerName)
 	sign.CFrame = CFrame.new(cx, 11, cz) * CFrame.Angles(0, -angle + math.pi, 0)
 	sign.Parent = plot
 
-	-- Six slots in two rows of three, facing the plaza.
+	-- Twelve slots in four rows of three, facing the plaza. Base upgrades
+	-- unlock the back rows, so every plot is built with all twelve pads.
 	local slots = {}
-	for row = 1, 2 do
+	for row = 1, 4 do
 		for col = 1, 3 do
-			local offset = Vector3.new((col - 2) * 5, 0, (row - 1.5) * 5)
+			local offset = Vector3.new((col - 2) * 5, 0, (row - 2.5) * 5)
 			local rotated = CFrame.Angles(0, -angle, 0) * offset
 			local slotPos = Vector3.new(cx, 1, cz) + rotated
 			local slot = makePart("Slot" .. ((row - 1) * 3 + col), Vector3.new(4, 0.4, 4), slotPos, Color3.fromRGB(255, 255, 255), Enum.Material.Neon)
@@ -246,6 +247,10 @@ function WorldBuilder.buildWorld()
 	WorldBuilder.buildPlaza(folder)
 	WorldBuilder.buildConveyor(folder)
 	WorldBuilder.buildDecorations(folder)
+	WorldBuilder.buildSecondFountain(folder)
+	WorldBuilder.buildPark(folder)
+	WorldBuilder.buildArchway(folder)
+	WorldBuilder.buildEventStage(folder)
 	WorldBuilder.buildLighting()
 
 	local plots = {}
@@ -261,6 +266,125 @@ function WorldBuilder.buildWorld()
 	wall.Parent = folder
 
 	return { Folder = folder, Plots = plots, TsunamiWall = wall }
+end
+
+-- A second, smaller fountain in the south-east corner of the plaza, so the
+-- meeting point is not the only water in the bazaar.
+function WorldBuilder.buildSecondFountain(folder)
+	local basin = Instance.new("Part")
+	basin.Name = "FountainBasin2"
+	basin.Shape = Enum.PartType.Cylinder
+	basin.Size = Vector3.new(3, 7, 7)
+	basin.CFrame = CFrame.new(26, 1, 26) * CFrame.Angles(0, 0, math.rad(90))
+	basin.Color = Color3.fromRGB(150, 150, 160)
+	basin.Material = Enum.Material.Concrete
+	basin.Anchored = true
+	basin.Parent = folder
+	local water = Instance.new("Part")
+	water.Name = "FountainWater2"
+	water.Shape = Enum.PartType.Cylinder
+	water.Size = Vector3.new(2, 5.5, 5.5)
+	water.CFrame = CFrame.new(26, 2, 26) * CFrame.Angles(0, 0, math.rad(90))
+	water.Color = Color3.fromRGB(80, 200, 255)
+	water.Material = Enum.Material.Neon
+	water.Transparency = 0.25
+	water.Anchored = true
+	water.CanCollide = false
+	water.Parent = folder
+	local spout = makePart("FountainSpout2", Vector3.new(0.8, 3, 0.8), Vector3.new(26, 3.5, 26), Color3.fromRGB(150, 150, 160), Enum.Material.Concrete)
+	spout.Parent = folder
+end
+
+-- A little park in the south-west corner: three trees, two benches, a pond
+-- and a ring of flowers for players to idle in between waves.
+function WorldBuilder.buildPark(folder)
+	local parkX, parkZ = -62, 62
+	for _, spot in ipairs({ { -8, -6 }, { 0, -9 }, { 8, -5 } }) do
+		local trunk = makePart("ParkTreeTrunk", Vector3.new(1.6, 5, 1.6), Vector3.new(parkX + spot[1], 2.5, parkZ + spot[2]), Color3.fromRGB(140, 90, 40), Enum.Material.Wood)
+		trunk.Parent = folder
+		local leaves = makePart("ParkTreeLeaves", Vector3.new(6, 5, 6), Vector3.new(parkX + spot[1], 7.5, parkZ + spot[2]), Color3.fromRGB(70, 190, 90), Enum.Material.SmoothPlastic)
+		leaves.Parent = folder
+	end
+	for _, side in ipairs({ -1, 1 }) do
+		local benchX = parkX + side * 6
+		local seat = makePart("ParkBench", Vector3.new(5, 0.6, 2), Vector3.new(benchX, 1, parkZ + 4), Color3.fromRGB(160, 110, 60), Enum.Material.Wood)
+		seat.Parent = folder
+		local back = makePart("ParkBenchBack", Vector3.new(5, 2, 0.6), Vector3.new(benchX, 2, parkZ + 5), Color3.fromRGB(160, 110, 60), Enum.Material.Wood)
+		back.Parent = folder
+	end
+	local pond = Instance.new("Part")
+	pond.Name = "ParkPond"
+	pond.Shape = Enum.PartType.Cylinder
+	pond.Size = Vector3.new(1, 10, 10)
+	pond.CFrame = CFrame.new(parkX, 0.5, parkZ - 2) * CFrame.Angles(0, 0, math.rad(90))
+	pond.Color = Color3.fromRGB(60, 170, 255)
+	pond.Material = Enum.Material.Neon
+	pond.Transparency = 0.3
+	pond.Anchored = true
+	pond.CanCollide = false
+	pond.Parent = folder
+	local flowerColors = { Color3.fromRGB(255, 120, 180), Color3.fromRGB(255, 220, 80), Color3.fromRGB(200, 120, 255) }
+	for i = 1, 9 do
+		local angle = (i - 1) * (math.pi * 2 / 9)
+		local flower = makePart("ParkFlower" .. i, Vector3.new(0.8, 0.8, 0.8), Vector3.new(parkX + math.cos(angle) * 12, 0.6, parkZ + math.sin(angle) * 12), flowerColors[(i - 1) % 3 + 1], Enum.Material.Neon)
+		flower.CanCollide = false
+		flower.Parent = folder
+	end
+end
+
+-- Entrance arch over the spawn path: two pillars, a beam and a welcome
+-- sign, so new players walk under the bazaar's name as they arrive.
+function WorldBuilder.buildArchway(folder)
+	local archZ = 52
+	for _, side in ipairs({ -1, 1 }) do
+		local pillar = makePart("ArchPillar", Vector3.new(2, 12, 2), Vector3.new(side * 10, 6, archZ), Color3.fromRGB(255, 190, 40), Enum.Material.SmoothPlastic)
+		pillar.Parent = folder
+	end
+	local beam = makePart("ArchBeam", Vector3.new(22, 2, 2), Vector3.new(0, 13, archZ), Color3.fromRGB(255, 190, 40), Enum.Material.SmoothPlastic)
+	beam.Parent = folder
+	local sign = WorldBuilder.makeSign("WELCOME TO THE BAZAAR", Vector3.new(0, 17, archZ), Color3.fromRGB(255, 255, 255))
+	sign.Parent = folder
+end
+
+-- Event stage beside the conveyor: a platform, two speaker stacks, four
+-- neon light poles and a chequered dance floor for golden conveyor parties.
+function WorldBuilder.buildEventStage(folder)
+	local stageX, stageZ = 48, -52
+	local platform = makePart("EventStage", Vector3.new(18, 1.5, 12), Vector3.new(stageX, 0.75, stageZ), Color3.fromRGB(80, 60, 140), Enum.Material.SmoothPlastic)
+	platform.Parent = folder
+	for _, side in ipairs({ -1, 1 }) do
+		local speaker = makePart("EventSpeaker", Vector3.new(3, 7, 3), Vector3.new(stageX + side * 7, 5, stageZ - 4), Color3.fromRGB(30, 30, 40), Enum.Material.Metal)
+		speaker.Parent = folder
+		local cone = makePart("SpeakerCone", Vector3.new(2, 2, 0.5), Vector3.new(stageX + side * 7, 6, stageZ - 2.4), Color3.fromRGB(255, 220, 80), Enum.Material.Neon)
+		cone.CanCollide = false
+		cone.Parent = folder
+	end
+	local poleColors = { Color3.fromRGB(255, 60, 120), Color3.fromRGB(80, 200, 255), Color3.fromRGB(255, 220, 80), Color3.fromRGB(120, 255, 120) }
+	for i = 1, 4 do
+		local px = stageX + (i % 2 == 0 and 8 or -8)
+		local pz = stageZ + (i <= 2 and -5 or 5)
+		local pole = makePart("StageLightPole" .. i, Vector3.new(0.6, 8, 0.6), Vector3.new(px, 4, pz), Color3.fromRGB(60, 60, 60), Enum.Material.Metal)
+		pole.Parent = folder
+		local bulb = makePart("StageLight" .. i, Vector3.new(1.6, 1.6, 1.6), Vector3.new(px, 8.4, pz), poleColors[i], Enum.Material.Neon)
+		bulb.CanCollide = false
+		bulb.Parent = folder
+		local light = Instance.new("PointLight")
+		light.Color = poleColors[i]
+		light.Range = 14
+		light.Brightness = 1
+		light.Parent = bulb
+	end
+	for dx = -1, 1 do
+		for dz = -1, 1 do
+			local tileColor = Color3.fromRGB(255, 255, 255)
+			if (dx + dz) % 2 == 0 then
+				tileColor = Color3.fromRGB(40, 40, 60)
+			end
+			local tile = makePart("DanceTile", Vector3.new(4, 0.3, 4), Vector3.new(stageX + dx * 4, 1.6, stageZ + dz * 4), tileColor, Enum.Material.Neon)
+			tile.CanCollide = false
+			tile.Parent = folder
+		end
+	end
 end
 
 return WorldBuilder

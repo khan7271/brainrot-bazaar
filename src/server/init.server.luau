@@ -39,6 +39,8 @@ createRemoteEvent("HudUpdate")
 createRemoteEvent("BuyShopItem")
 createRemoteEvent("RequestRebirth")
 createRemoteEvent("RequestSlap")
+createRemoteEvent("GoldenConveyorEvent")
+createRemoteEvent("BuyBaseUpgrade")
 
 -- Build the world first: plaza, conveyor, eight bases, decorations.
 local world = WorldBuilder.buildWorld()
@@ -75,6 +77,15 @@ local function sendHudUpdate(player)
 		WaveActive = TsunamiService.isWaveActive(),
 		BrainrotCount = BaseService.countBrainrots(player),
 		RebirthProgress = math.min(1, data.Cash / GameConfig.REBIRTH_CASH_REQUIRED),
+		MagnetActive = PlayerDataService.hasMagnet(player),
+		ShieldActive = PlayerDataService.hasShield(player),
+		GoldenConveyor = ConveyorService.isGoldenActive(),
+		GoldenSecondsLeft = ConveyorService.getGoldenSecondsLeft(),
+		PlaytimeSeconds = data.PlaytimeSeconds,
+		BestSlapStreak = data.BestSlapStreak,
+		StealsDefended = data.TotalStealsDefended,
+		LockSecondsLeft = BaseService.getLockTimeLeft(player),
+		SlapCombo = SlapService.getCombo(player),
 	})
 end
 
@@ -87,6 +98,18 @@ local function onPlayerAdded(player)
 		task.wait(2)
 		if notify then
 			notify:FireClient(player, "Welcome to Brainrot Bazaar! Click a brainrot on the conveyor to buy it.")
+		end
+	end)
+	task.spawn(function()
+		task.wait(9)
+		if notify then
+			notify:FireClient(player, "Tip: watch for the GOLDEN CONVEYOR - brainrots bought then earn double!")
+		end
+	end)
+	task.spawn(function()
+		task.wait(16)
+		if notify then
+			notify:FireClient(player, "Tip: the shop sells a Cash Magnet and a Sauce Shield. Press T to hide the ladder, H to hide panels.")
 		end
 	end)
 	player.CharacterAdded:Connect(function(character)
@@ -114,6 +137,8 @@ end
 -- Start every loop.
 BaseService.startIncomeLoop()
 ConveyorService.startBeltLoop()
+ConveyorService.startGoldenEventLoop()
+PlayerDataService.startPlaytimeLoop()
 ThiefService.startThiefLoop()
 TsunamiService.startWaveLoop()
 LeaderboardService.startLeaderboardLoop()

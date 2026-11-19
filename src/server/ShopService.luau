@@ -22,12 +22,14 @@ function ShopService.buyItem(player, itemKey)
 	if not data then
 		return false, "No player data."
 	end
-	if data.Cash < item.Price then
+	local price = ShopService.getEffectivePrice(player, item)
+	if data.Cash < price then
 		return false, "Not enough Cash for " .. item.Name .. "."
 	end
-	if not PlayerDataService.spendCash(player, item.Price) then
+	if not PlayerDataService.spendCash(player, price) then
 		return false, "Could not pay."
 	end
+	data.Purchases += 1
 	if itemKey == "SlapPower" then
 		data.SlapPower += 1
 		return true, "Slap Power is now level " .. data.SlapPower .. "!"
@@ -48,6 +50,12 @@ function ShopService.buyItem(player, itemKey)
 			end)
 		end
 		return true, "Base Lock active for 2 minutes! Thieves cannot enter."
+	elseif itemKey == "Magnet" then
+		PlayerDataService.grantMagnet(player, GameConfig.MAGNET_DURATION)
+		return true, "Cash Magnet active for 60 seconds! Belt brainrots are 15% cheaper."
+	elseif itemKey == "Shield" then
+		PlayerDataService.grantShield(player, GameConfig.SHIELD_DURATION)
+		return true, "Sauce Shield active for 60 seconds! The next tsunami cannot take your cash."
 	end
 	return true, "Bought " .. item.Name .. "."
 end
@@ -98,6 +106,24 @@ function ShopService.bindRemotes()
 			notify:FireClient(player, message)
 		end
 	end)
+	local upgradeEvent = ReplicatedStorage:WaitForChild("BuyBaseUpgrade")
+	upgradeEvent.OnServerEvent:Connect(function(player)
+		local ok, message = BaseService.buyBaseUpgrade(player)
+		local notify = ReplicatedStorage:FindFirstChild("NotifyPlayer")
+		if notify then
+			notify:FireClient(player, message)
+		end
+	end)
+end
+
+-- Loyalty price: the fifth, tenth, fifteenth... purchase is 10% cheaper,
+-- so regular shoppers get a break. Counted from purchases already made.
+function ShopService.getEffectivePrice(player, item)
+	local data = PlayerDataService.getPlayerData(player)
+	if data and data.Purchases % GameConfig.LOYALTY_PURCHASES_FOR_DISCOUNT == GameConfig.LOYALTY_PURCHASES_FOR_DISCOUNT - 1 then
+		return math.floor(item.Price * (1 - GameConfig.LOYALTY_DISCOUNT))
+	end
+	return item.Price
 end
 
 return ShopService

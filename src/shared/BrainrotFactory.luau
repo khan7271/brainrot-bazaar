@@ -125,6 +125,13 @@ function BrainrotFactory.buildCharacterModel(character, mutationName)
 		sparkles.Parent = torso
 	end
 
+	if mutationName == "Void" then
+		BrainrotFactory.attachVoidAura(model, torso)
+	end
+	if character.Rarity == "Cosmic" then
+		BrainrotFactory.buildCosmicHalo(model, head)
+	end
+
 	BrainrotFactory.attachNameTag(model, character, mutationName)
 	return model
 end
@@ -196,6 +203,80 @@ function BrainrotFactory.attachPriceTag(model, price)
 	label.TextScaled = true
 	label.Font = Enum.Font.SourceSansBold
 	label.Parent = tag
+end
+
+-- Void aura: a deep purple glow and slow, heavy motes around the torso.
+function BrainrotFactory.attachVoidAura(model, torso)
+	local glow = Instance.new("PointLight")
+	glow.Name = "VoidGlow"
+	glow.Color = Color3.fromRGB(120, 0, 200)
+	glow.Range = 10
+	glow.Brightness = 2
+	glow.Parent = torso
+	local motes = Instance.new("ParticleEmitter")
+	motes.Name = "VoidMotes"
+	motes.Color = ColorSequence.new(Color3.fromRGB(150, 40, 255))
+	motes.Rate = 20
+	motes.Lifetime = NumberRange.new(1.2)
+	motes.Speed = NumberRange.new(1)
+	motes.Size = NumberSequence.new(0.7)
+	motes.Parent = torso
+end
+
+-- Cosmic halo: a flat neon ring floating above the head plus five little
+-- star spikes, so the Cosmic tier reads at a glance even from far away.
+function BrainrotFactory.buildCosmicHalo(model, head)
+	local halo = Instance.new("Part")
+	halo.Name = "CosmicHalo"
+	halo.Shape = Enum.PartType.Cylinder
+	halo.Size = Vector3.new(0.4, 3.6, 3.6)
+	halo.CFrame = CFrame.new(head.Position + Vector3.new(0, 1.8, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	halo.Color = Color3.fromRGB(0, 255, 220)
+	halo.Material = Enum.Material.Neon
+	halo.Anchored = false
+	halo.Parent = model
+	local haloWeld = Instance.new("WeldConstraint")
+	haloWeld.Part0 = head
+	haloWeld.Part1 = halo
+	haloWeld.Parent = head
+	for i = 1, 5 do
+		local angle = (i - 1) * (math.pi * 2 / 5)
+		local star = Instance.new("Part")
+		star.Name = "HaloStar"
+		star.Size = Vector3.new(0.4, 0.4, 0.4)
+		star.Position = head.Position + Vector3.new(math.cos(angle) * 1.8, 1.8, math.sin(angle) * 1.8)
+		star.Color = Color3.fromRGB(255, 240, 120)
+		star.Material = Enum.Material.Neon
+		star.Anchored = false
+		star.Parent = model
+		local starWeld = Instance.new("WeldConstraint")
+		starWeld.Part0 = head
+		starWeld.Part1 = star
+		starWeld.Parent = head
+	end
+end
+
+-- Golden glow: a warm light plus rising gold sparkles, used for brainrots
+-- spawned while the golden conveyor window is running.
+function BrainrotFactory.attachGoldenGlow(model)
+	local torso = model.PrimaryPart
+	if not torso then
+		return
+	end
+	local glow = Instance.new("PointLight")
+	glow.Name = "GoldenGlow"
+	glow.Color = Color3.fromRGB(255, 215, 0)
+	glow.Range = 8
+	glow.Brightness = 1.5
+	glow.Parent = torso
+	local sparkles = Instance.new("ParticleEmitter")
+	sparkles.Name = "GoldenSparkles"
+	sparkles.Color = ColorSequence.new(Color3.fromRGB(255, 220, 80))
+	sparkles.Rate = 16
+	sparkles.Lifetime = NumberRange.new(0.8)
+	sparkles.Speed = NumberRange.new(3)
+	sparkles.Size = NumberSequence.new(0.5)
+	sparkles.Parent = torso
 end
 
 return BrainrotFactory

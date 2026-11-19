@@ -16,6 +16,8 @@ local TsunamiService = {}
 local tsunamiWall = nil
 local secondsUntilWave = GameConfig.TSUNAMI_INTERVAL
 local waveActive = false
+local waveCount = 0
+local graceUntil = 0
 
 function TsunamiService.init(world)
 	tsunamiWall = world.TsunamiWall
@@ -61,11 +63,23 @@ function TsunamiService.sweepPlayers()
 		if not TsunamiService.isPlayerInSafeZone(player) then
 			local data = PlayerDataService.getPlayerData(player)
 			if data then
-				local lost = math.floor(data.Cash * GameConfig.TSUNAMI_CASH_DROP_FRACTION)
-				data.Cash -= lost
-				local event = ReplicatedStorage:FindFirstChild("NotifyPlayer")
-				if event then
-					event:FireClient(player, "The sauce wave swept you away! You dropped $" .. lost .. ".")
+				if PlayerDataService.hasShield(player) then
+					local event = ReplicatedStorage:FindFirstChild("NotifyPlayer")
+					if event then
+						event:FireClient(player, "Your Sauce Shield absorbed the wave! No cash lost.")
+					end
+				elseif TsunamiService.getGraceSecondsLeft() > 0 then
+					local event = ReplicatedStorage:FindFirstChild("NotifyPlayer")
+					if event then
+						event:FireClient(player, "Grace period! The wave swept you home but kept your cash.")
+					end
+				else
+					local lost = math.floor(data.Cash * GameConfig.TSUNAMI_CASH_DROP_FRACTION)
+					data.Cash -= lost
+					local event = ReplicatedStorage:FindFirstChild("NotifyPlayer")
+					if event then
+						event:FireClient(player, "The sauce wave swept you away! You dropped $" .. lost .. ".")
+					end
 				end
 			end
 			local character = player.Character
@@ -87,6 +101,8 @@ end
 -- Animate the wall rolling across the map, then slide it back north.
 function TsunamiService.animateWave()
 	waveActive = true
+	waveCount += 1
+	graceUntil = os.clock() + GameConfig.TSUNAMI_GRACE_PERIOD
 	local event = ReplicatedStorage:FindFirstChild("TsunamiEvent")
 	if event then
 		event:FireAllClients("start")
@@ -95,7 +111,9 @@ function TsunamiService.animateWave()
 		local startZ = -120
 		local endZ = 110
 		local distance = endZ - startZ
-		local duration = distance / GameConfig.TSUNAMI_WAVE_SPEED
+		local extraSpeed = math.min(waveCount * GameConfig.TSUNAMI_WAVE_GROWTH, GameConfig.TSUNAMI_MAX_EXTRA_SPEED)
+		local duration = distance / (GameConfig.TSUNAMI_WAVE_SPEED + extraSpeed)
+		tsunamiWall.Size = Vector3.new(300, math.min(20 + waveCount * 2, 34), 4)
 		local steps = 60
 		for i = 1, steps do
 			local z = startZ + distance * (i / steps)
@@ -124,6 +142,18 @@ function TsunamiService.startWaveLoop()
 			while secondsUntilWave > 0 do
 				task.wait(1)
 				secondsUntilWave -= 1
+				if secondsUntilWave == GameConfig.TSUNAMI_PHASE1_WARNING then
+					local warnEvent = ReplicatedStorage:FindFirstChild("TsunamiEvent")
+					if warnEvent then
+						warnEvent:FireAllClients("rumble")
+					end
+					local event = ReplicatedStorage:FindFirstChild("NotifyPlayer")
+					for _, player in ipairs(Players:GetPlayers()) do
+						if event then
+							event:FireClient(player, "You hear a distant rumble... the sauce is coming in 30 seconds!")
+						end
+					end
+				end
 				if secondsUntilWave == GameConfig.TSUNAMI_WARNING then
 					local event = ReplicatedStorage:FindFirstChild("NotifyPlayer")
 					local warnEvent = ReplicatedStorage:FindFirstChild("TsunamiEvent")
@@ -141,6 +171,22 @@ function TsunamiService.startWaveLoop()
 			task.wait(8)
 		end
 	end)
+end
+
+-- How many waves have swept the map so far (drives wave scaling).
+function TsunamiService.getWaveLevel()
+	return waveCount
+end
+
+-- Seconds left in the post-wave grace period, or 0 when it has passed.
+function TsunamiService.getGraceSecondsLeft()
+	return math.max(0, math.floor(graceUntil - os.clock()))
+end
+
+-- The wave's current speed in studs per second, after scaling.
+function TsunamiService.getWaveSpeed()
+	local extraSpeed = math.min(waveCount * GameConfig.TSUNAMI_WAVE_GROWTH, GameConfig.TSUNAMI_MAX_EXTRA_SPEED)
+	return GameConfig.TSUNAMI_WAVE_SPEED + extraSpeed
 end
 
 return TsunamiService

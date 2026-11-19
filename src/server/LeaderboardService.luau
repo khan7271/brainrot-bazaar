@@ -39,7 +39,10 @@ function LeaderboardService.broadcastLeaderboard()
 	local rebirthBoard = topPlayersBy(function(data)
 		return data.Rebirths
 	end, 5)
-	event:FireAllClients(cashBoard, rebirthBoard)
+	local defenderBoard = topPlayersBy(function(data)
+		return data.TotalStealsDefended
+	end, 5)
+	event:FireAllClients(cashBoard, rebirthBoard, defenderBoard)
 end
 
 function LeaderboardService.startLeaderboardLoop()
@@ -49,6 +52,43 @@ function LeaderboardService.startLeaderboardLoop()
 			LeaderboardService.broadcastLeaderboard()
 		end
 	end)
+end
+
+-- The single best defender in the server right now, or nil when nobody
+-- has stopped a thief yet.
+function LeaderboardService.getTopDefender()
+	local best = nil
+	local bestScore = 0
+	for _, player in ipairs(Players:GetPlayers()) do
+		local data = PlayerDataService.getPlayerData(player)
+		if data and data.TotalStealsDefended > bestScore then
+			bestScore = data.TotalStealsDefended
+			best = player
+		end
+	end
+	if not best then
+		return nil
+	end
+	return { Name = best.Name, Score = bestScore }
+end
+
+-- Total defends across the whole server (a fun number for the HUD).
+function LeaderboardService.getTotalDefends()
+	local total = 0
+	for _, player in ipairs(Players:GetPlayers()) do
+		local data = PlayerDataService.getPlayerData(player)
+		if data then
+			total += data.TotalStealsDefended
+		end
+	end
+	return total
+end
+
+-- The top N players by playtime, for the stats panel.
+function LeaderboardService.topPlayersByPlaytime(count)
+	return topPlayersBy(function(data)
+		return data.PlaytimeSeconds
+	end, count)
 end
 
 return LeaderboardService

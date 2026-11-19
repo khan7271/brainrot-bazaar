@@ -15,8 +15,9 @@ local BaseService = require(script.Parent.BaseService)
 
 local ThiefService = {}
 
-local thieves = {} -- model -> { TargetPlayer, Slot, StealStartedAt }
+local thieves = {} -- model -> { TargetPlayer, Slot, StealStartedAt, Type }
 local thiefFolder = nil
+local lastStolenAt = {} -- userId -> os.time of the last steal against them
 
 function ThiefService.init()
 	thiefFolder = Instance.new("Folder")
@@ -76,7 +77,7 @@ end
 function ThiefService.pickVictim()
 	local candidates = {}
 	for _, player in ipairs(Players:GetPlayers()) do
-		if BaseService.countBrainrots(player) > 0 and not PlayerDataService.isBaseLocked(player) then
+		if BaseService.countBrainrots(player) > 0 and not PlayerDataService.isBaseLocked(player) and ThiefService.getStealCooldownLeft(player) <= 0 then
 			table.insert(candidates, player)
 		end
 	end
@@ -107,10 +108,11 @@ function ThiefService.spawnThief()
 	if not plot then
 		return
 	end
-	local model = ThiefService.buildThiefModel()
+	local thiefType = ThiefService.pickThiefType()
+	local model = ThiefService.buildThiefModelForType(thiefType)
 	model:PivotTo(CFrame.new(math.random(-90, 90), 3, 85))
 	model.Parent = thiefFolder
-	thieves[model] = { TargetPlayer = victim, Slot = slot, StealStartedAt = nil }
+	thieves[model] = { TargetPlayer = victim, Slot = slot, StealStartedAt = nil, Type = thiefType }
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	humanoid:MoveTo(plot.Slots[slot])
 	-- Warn the victim so they can run back and slap the thief.
@@ -136,9 +138,11 @@ function ThiefService.updateThieves()
 				local slotPos = plot.Slots[thief.Slot]
 				local distance = (model.PrimaryPart.Position - slotPos).Magnitude
 				if distance < 4 then
+					local stealTime = GameConfig.THIEF_TYPES[thief.Type].StealTime
 					if not thief.StealStartedAt then
 						thief.StealStartedAt = os.clock()
-					elseif os.clock() - thief.StealStartedAt >= GameConfig.THIEF_STEAL_TIME then
+					elseif os.clock() - thief.StealStartedAt >= stealTime then
+						lastStolenAt[thief.TargetPlayer.UserId] = os.time()
 						local stolen = BaseService.removeBrainrotFromSlot(thief.TargetPlayer, thief.Slot)
 						if stolen then
 							local event = ReplicatedStorage:FindFirstChild("NotifyPlayer")
@@ -165,9 +169,20 @@ function ThiefService.removeThief(model)
 end
 
 -- SlapService calls this: knock a thief flying and despawn it.
-function ThiefService.slapThiefAway(model, slapPower)
-	if not thieves[model] then
+function ThiefService.slapThiefAway(model, slapPower, slapper)
+	local entry = thieves[model]
+	if not entry then
 		return false
+	end
+	if slapper then
+		PlayerDataService.addStealDefended(slapper)
+		if entry.Type == "Speedy" then
+			PlayerDataService.addCash(slapper, GameConfig.SPEEDY_THIEF_BOUNTY)
+			local notify = ReplicatedStorage:FindFirstChild("NotifyPlayer")
+			if notify then
+				notify:FireClient(slapper, "Speedy thief bounty! +$" .. GameConfig.SPEEDY_THIEF_BOUNTY)
+			end
+		end
 	end
 	local torso = model.PrimaryPart
 	if torso then
@@ -201,6 +216,72 @@ function ThiefService.startThiefLoop()
 			ThiefService.updateThieves()
 		end
 	end)
+end
+
+-- Pick a thief type by weight: most are normal, some speedy, a few disguised.
+function ThiefService.pickThiefType()
+	local roll = math.random(1, 100)
+	local running = 0
+	local order = { "Normal", "Speedy", "Disguised" }
+	for _, typeName in ipairs(order) do
+		running += GameConfig.THIEF_TYPES[typeName].Weight
+		if roll <= running then
+			return typeName
+		end
+	end
+	return "Normal"
+end
+
+-- Build a thief of one type: speedy thieves wear red and run fast,
+-- disguised thieves borrow a brainrot's colours to blend into the belt.
+function ThiefService.buildThiefModelForType(typeName)
+	local model = ThiefService.buildThiefModel()
+	local torso = model:FindFirstChild("Torso")
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	local info = GameConfig.THIEF_TYPES[typeName] or GameConfig.THIEF_TYPES.Normal
+	if humanoid then
+		humanoid.WalkSpeed = info.Speed
+	end
+	if typeName == "Speedy" and torso then
+		torso.Color = Color3.fromRGB(200, 40, 40)
+		local bolt = Instance.new("Part")
+		bolt.Name = "LightningBolt"
+		bolt.Size = Vector3.new(0.5, 1.4, 0.5)
+		bolt.Position = torso.Position + Vector3.new(0, 1.8, 0)
+		bolt.Color = Color3.fromRGB(255, 220, 80)
+		bolt.Material = Enum.Material.Neon
+		bolt.Anchored = false
+		bolt.Parent = model
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = torso
+		weld.Part1 = bolt
+		weld.Parent = torso
+	elseif typeName == "Disguised" and torso then
+		local disguise = BrainrotData.CHARACTERS[math.random(1, 4)]
+		torso.Color = disguise.BodyColor
+		local hat = Instance.new("Part")
+		hat.Name = "DisguiseHat"
+		hat.Size = Vector3.new(2.4, 0.6, 2.4)
+		hat.Position = torso.Position + Vector3.new(0, 2.6, 0)
+		hat.Color = disguise.AccentColor
+		hat.Anchored = false
+		hat.Parent = model
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = torso
+		weld.Part1 = hat
+		weld.Parent = torso
+	end
+	model.Name = typeName .. "Thief"
+	return model
+end
+
+-- Seconds until a player can be targeted again after being stolen from.
+function ThiefService.getStealCooldownLeft(player)
+	local last = lastStolenAt[player.UserId]
+	if not last then
+		return 0
+	end
+	return math.max(0, GameConfig.THIEF_COOLDOWN_AFTER_STEAL - (os.time() - last))
 end
 
 return ThiefService

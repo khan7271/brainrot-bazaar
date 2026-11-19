@@ -72,7 +72,7 @@ function HudBuilder.buildHud(playerGui)
 	makeLabel("WaveTimer", wavePanel, UDim2.new(0, 0, 0, 30), UDim2.new(1, 0, 0, 28), "1:30", 26, Color3.fromRGB(255, 255, 255))
 
 	-- Left rarity ladder: every tier, its colour and its best earner.
-	local ladderPanel = makePanel("RarityLadder", gui, UDim2.new(0, 12, 0, 140), UDim2.new(0, 210, 0, 250), Color3.fromRGB(30, 30, 45))
+	local ladderPanel = makePanel("RarityLadder", gui, UDim2.new(0, 12, 0, 140), UDim2.new(0, 210, 0, 284), Color3.fromRGB(30, 30, 45))
 	makeLabel("LadderTitle", ladderPanel, UDim2.new(0, 0, 0, 6), UDim2.new(1, 0, 0, 26), "RARITY LADDER", 20, Color3.fromRGB(255, 220, 80))
 	local ladderRows = {
 		{ "Common", Color3.fromRGB(200, 200, 200), "Croissant Captain $1/s" },
@@ -81,6 +81,7 @@ function HudBuilder.buildHud(playerGui)
 		{ "Legendary", Color3.fromRGB(255, 190, 40), "Cheddar Chairman $140/s" },
 		{ "Mythic", Color3.fromRGB(255, 70, 90), "Llama Latte $500/s" },
 		{ "Brainrot God", Color3.fromRGB(255, 240, 120), "Baguette Baron $1,800/s" },
+		{ "Cosmic", Color3.fromRGB(0, 255, 220), "Quantum Quiche $5,000/s" },
 	}
 	for i, row in ipairs(ladderRows) do
 		local y = 36 + (i - 1) * 34
@@ -88,7 +89,7 @@ function HudBuilder.buildHud(playerGui)
 	end
 
 	-- Right shop panel: four upgrades with prices.
-	local shopPanel = makePanel("ShopPanel", gui, UDim2.new(1, -230, 0, 100), UDim2.new(0, 210, 0, 250), Color3.fromRGB(30, 30, 45))
+	local shopPanel = makePanel("ShopPanel", gui, UDim2.new(1, -230, 0, 100), UDim2.new(0, 210, 0, 340), Color3.fromRGB(30, 30, 45))
 	makeLabel("ShopTitle", shopPanel, UDim2.new(0, 0, 0, 6), UDim2.new(1, 0, 0, 26), "SHOP", 20, Color3.fromRGB(255, 220, 80))
 	local shopButtons = {}
 	local shopItems = {
@@ -96,6 +97,8 @@ function HudBuilder.buildHud(playerGui)
 		{ Key = "SpeedBoost", Text = "Speed Boost - $800" },
 		{ Key = "LuckyCharm", Text = "Lucky Charm - $1,500" },
 		{ Key = "BaseLock", Text = "Base Lock 2 min - $2,500" },
+		{ Key = "Magnet", Text = "Cash Magnet 60s - $1,200" },
+		{ Key = "Shield", Text = "Sauce Shield 60s - $2,000" },
 	}
 	for i, item in ipairs(shopItems) do
 		local y = 40 + (i - 1) * 48
@@ -103,7 +106,7 @@ function HudBuilder.buildHud(playerGui)
 	end
 
 	-- Rebirth button under the shop, with a progress bar to $1,000,000.
-	local rebirthPanel = makePanel("RebirthPanel", gui, UDim2.new(1, -230, 0, 362), UDim2.new(0, 210, 0, 110), Color3.fromRGB(60, 30, 60))
+	local rebirthPanel = makePanel("RebirthPanel", gui, UDim2.new(1, -230, 0, 452), UDim2.new(0, 210, 0, 110), Color3.fromRGB(60, 30, 60))
 	makeLabel("RebirthTitle", rebirthPanel, UDim2.new(0, 0, 0, 6), UDim2.new(1, 0, 0, 26), "REBIRTH - $1,000,000", 18, Color3.fromRGB(255, 240, 120))
 	local progressBack = Instance.new("Frame")
 	progressBack.Name = "RebirthProgressBack"
@@ -140,6 +143,30 @@ function HudBuilder.buildHud(playerGui)
 	warnBanner.Visible = false
 	makeLabel("WaveWarningText", warnBanner, UDim2.new(0, 0, 0, 8), UDim2.new(1, 0, 0, 44), "TSUNAMI OF SAUCE INCOMING - RUN TO YOUR BASE!", 22, Color3.fromRGB(255, 255, 255))
 
+	-- Boost strip under the cash bar: live buffs (speed, magnet, shield,
+	-- golden window) in one short line.
+	local boostPanel = makePanel("BoostPanel", gui, UDim2.new(0.5, -160, 0, 100), UDim2.new(0, 320, 0, 28), Color3.fromRGB(30, 30, 45))
+	local boostLabel = makeLabel("BoostLabel", boostPanel, UDim2.new(0, 0, 0, 2), UDim2.new(1, 0, 1, 0), "", 16, Color3.fromRGB(255, 220, 80))
+
+	-- Golden conveyor banner, hidden until a golden window starts.
+	local eventBanner = makePanel("EventBanner", gui, UDim2.new(0.5, -260, 0, 180), UDim2.new(0, 520, 0, 44), Color3.fromRGB(160, 110, 10))
+	eventBanner.Visible = false
+	local goldenTimer = makeLabel("GoldenTimer", eventBanner, UDim2.new(0, 0, 0, 6), UDim2.new(1, 0, 0, 32), "GOLDEN CONVEYOR!", 24, Color3.fromRGB(255, 255, 255))
+
+	-- Stats panel under the ladder: playtime and thief defence record.
+	local statsPanel = makePanel("StatsPanel", gui, UDim2.new(0, 12, 0, 436), UDim2.new(0, 210, 0, 64), Color3.fromRGB(30, 30, 45))
+	local playtimeLabel = makeLabel("PlaytimeLabel", statsPanel, UDim2.new(0, 10, 0, 6), UDim2.new(1, -20, 0, 24), "Playtime: 0s", 16, Color3.fromRGB(255, 255, 255))
+	local defendsLabel = makeLabel("DefendsLabel", statsPanel, UDim2.new(0, 10, 0, 32), UDim2.new(1, -20, 0, 24), "Thieves stopped: 0", 16, Color3.fromRGB(255, 255, 255))
+
+	-- Defenders board, bottom-left above the slap button: top five by
+	-- thieves slapped away from their base.
+	local defendersPanel = makePanel("DefendersPanel", gui, UDim2.new(0, 16, 1, -290), UDim2.new(0, 210, 0, 170), Color3.fromRGB(30, 30, 45))
+	makeLabel("DefendersTitle", defendersPanel, UDim2.new(0, 0, 0, 6), UDim2.new(1, 0, 0, 26), "TOP DEFENDERS", 18, Color3.fromRGB(255, 220, 80))
+	local defenderLabels = {}
+	for i = 1, 5 do
+		defenderLabels[i] = makeLabel("DefenderRow" .. i, defendersPanel, UDim2.new(0, 10, 0, 34 + (i - 1) * 24), UDim2.new(1, -20, 0, 22), "", 16, Color3.fromRGB(255, 255, 255))
+	end
+
 	return {
 		Gui = gui,
 		CashLabel = cashPanel:FindFirstChild("CashLabel"),
@@ -153,6 +180,16 @@ function HudBuilder.buildHud(playerGui)
 		NotifyLabel = notifyLabel,
 		SlapButton = slapButton,
 		WarnBanner = warnBanner,
+		LadderPanel = ladderPanel,
+		ShopPanel = shopPanel,
+		LeaderboardPanel = boardPanel,
+		DefendersPanel = defendersPanel,
+		DefenderLabels = defenderLabels,
+		EventBanner = eventBanner,
+		GoldenTimer = goldenTimer,
+		BoostLabel = boostLabel,
+		PlaytimeLabel = playtimeLabel,
+		DefendsLabel = defendsLabel,
 	}
 end
 

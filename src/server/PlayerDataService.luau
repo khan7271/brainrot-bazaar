@@ -23,6 +23,14 @@ function PlayerDataService.createPlayerData(player)
 		BaseIndex = nil,
 		Brainrots = {}, -- slot index -> { CharacterName, Mutation, Income }
 		TotalEarned = 0,
+		PlaytimeSeconds = 0,
+		TotalStealsDefended = 0,
+		BestSlapStreak = 0,
+		SlapStreak = 0,
+		Purchases = 0,
+		MagnetUntil = 0,
+		ShieldUntil = 0,
+		BaseTier = 0,
 	}
 	playerData[player.UserId] = data
 	return data
@@ -164,5 +172,83 @@ end
 Players.PlayerRemoving:Connect(function(player)
 	PlayerDataService.removePlayerData(player)
 end)
+
+-- Magnet active? Belt brainrots are 15% cheaper while it hums.
+function PlayerDataService.hasMagnet(player)
+	local data = PlayerDataService.getPlayerData(player)
+	return data and os.time() < data.MagnetUntil
+end
+
+-- Shield active? The next tsunami cannot take this player's cash.
+function PlayerDataService.hasShield(player)
+	local data = PlayerDataService.getPlayerData(player)
+	return data and os.time() < data.ShieldUntil
+end
+
+function PlayerDataService.grantMagnet(player, seconds)
+	local data = PlayerDataService.getPlayerData(player)
+	if data then
+		data.MagnetUntil = os.time() + seconds
+	end
+end
+
+function PlayerDataService.grantShield(player, seconds)
+	local data = PlayerDataService.getPlayerData(player)
+	if data then
+		data.ShieldUntil = os.time() + seconds
+	end
+end
+
+-- The magnet's belt discount, or 0 when the magnet is not humming.
+function PlayerDataService.getMagnetDiscount(player)
+	if PlayerDataService.hasMagnet(player) then
+		return GameConfig.MAGNET_DISCOUNT
+	end
+	return 0
+end
+
+-- A thief was slapped away from this player's base: one defend for the board.
+function PlayerDataService.addStealDefended(player)
+	local data = PlayerDataService.getPlayerData(player)
+	if data then
+		data.TotalStealsDefended += 1
+	end
+end
+
+-- Record a slap streak: the live streak follows the combo, the best is kept.
+function PlayerDataService.noteSlapStreak(player, combo)
+	local data = PlayerDataService.getPlayerData(player)
+	if not data then
+		return
+	end
+	data.SlapStreak = combo
+	if combo > data.BestSlapStreak then
+		data.BestSlapStreak = combo
+	end
+end
+
+-- Playtime ticker: every second in the server adds a second to the record.
+function PlayerDataService.startPlaytimeLoop()
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			for _, player in ipairs(Players:GetPlayers()) do
+				local data = PlayerDataService.getPlayerData(player)
+				if data then
+					data.PlaytimeSeconds += 1
+				end
+			end
+		end
+	end)
+end
+
+-- A compact stats line for the HUD: playtime, defends, best streak.
+function PlayerDataService.getStatsSummary(player)
+	local data = PlayerDataService.getPlayerData(player)
+	if not data then
+		return "No stats yet"
+	end
+	return "Played " .. data.PlaytimeSeconds .. "s | Defended " .. data.TotalStealsDefended .. " | Best streak x" .. data.BestSlapStreak
+end
 
 return PlayerDataService

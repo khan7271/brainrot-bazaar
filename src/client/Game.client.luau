@@ -29,6 +29,7 @@ local hudUpdateEvent = ReplicatedStorage:WaitForChild("HudUpdate")
 local buyShopItemEvent = ReplicatedStorage:WaitForChild("BuyShopItem")
 local requestRebirthEvent = ReplicatedStorage:WaitForChild("RequestRebirth")
 local requestSlapEvent = ReplicatedStorage:WaitForChild("RequestSlap")
+local goldenEvent = ReplicatedStorage:WaitForChild("GoldenConveyorEvent")
 
 -- Show a notification for a few seconds, then fade it out.
 local notifyToken = 0
@@ -54,6 +55,15 @@ hudUpdateEvent.OnClientEvent:Connect(function(state)
 	if state.SpeedBoost then
 		boostText = "  |  SPEED!"
 	end
+	if state.MagnetActive then
+		boostText = boostText .. "  |  MAGNET!"
+	end
+	if state.ShieldActive then
+		boostText = boostText .. "  |  SHIELD!"
+	end
+	if state.GoldenConveyor then
+		boostText = boostText .. "  |  GOLDEN x2!"
+	end
 	hud.IncomeLabel.Text = FormatMoney.formatIncome(state.IncomePerSecond)
 		.. "  |  Base " .. state.BaseIndex
 		.. "  |  " .. state.BrainrotCount .. " brainrots"
@@ -69,16 +79,35 @@ hudUpdateEvent.OnClientEvent:Connect(function(state)
 		hud.WavePanel.BackgroundColor3 = Color3.fromRGB(120, 30, 30)
 	end
 	hud.RebirthProgressFill.Size = UDim2.new(math.clamp(state.RebirthProgress, 0, 1), 0, 1, 0)
+	hud.BoostLabel.Text = boostText
+	hud.PlaytimeLabel.Text = "Playtime: " .. FormatMoney.formatTime(state.PlaytimeSeconds or 0)
+	hud.DefendsLabel.Text = "Thieves stopped: " .. (state.StealsDefended or 0) .. "  |  Best slap streak: " .. (state.BestSlapStreak or 0)
+	if state.GoldenConveyor then
+		hud.GoldenTimer.Text = "GOLDEN! " .. FormatMoney.formatTimer(state.GoldenSecondsLeft or 0) .. " left"
+		hud.EventBanner.Visible = true
+	else
+		hud.EventBanner.Visible = false
+	end
 end)
 
 -- Leaderboard rows, top five by cash.
-leaderboardEvent.OnClientEvent:Connect(function(cashBoard, rebirthBoard)
+leaderboardEvent.OnClientEvent:Connect(function(cashBoard, rebirthBoard, defenderBoard)
 	for i = 1, 5 do
 		local entry = cashBoard[i]
 		if entry then
 			hud.BoardLabels[i].Text = i .. ". " .. entry.Name .. " - " .. FormatMoney.formatCash(entry.Score)
 		else
 			hud.BoardLabels[i].Text = ""
+		end
+	end
+	if defenderBoard then
+		for i = 1, 5 do
+			local entry = defenderBoard[i]
+			if entry then
+				hud.DefenderLabels[i].Text = i .. ". " .. entry.Name .. " - " .. entry.Score .. " stops"
+			else
+				hud.DefenderLabels[i].Text = ""
+			end
 		end
 	end
 end)
@@ -89,7 +118,9 @@ end)
 
 -- Tsunami lifecycle: warning banner on, wave banner off when it ends.
 tsunamiEvent.OnClientEvent:Connect(function(stage)
-	if stage == "warning" then
+	if stage == "rumble" then
+		showNotification("You hear a distant rumble... the sauce is coming in 30 seconds!")
+	elseif stage == "warning" then
 		hud.WarnBanner.Visible = true
 	elseif stage == "start" then
 		hud.WarnBanner.Visible = false
@@ -99,8 +130,10 @@ tsunamiEvent.OnClientEvent:Connect(function(stage)
 	end
 end)
 
-slapEvent.OnClientEvent:Connect(function(action)
-	if action == "slap" then
+slapEvent.OnClientEvent:Connect(function(action, combo)
+	if action == "slapCombo" then
+		showNotification("SLAP COMBO x" .. tostring(combo) .. "!")
+	elseif action == "slap" then
 		showNotification("SLAP!")
 	end
 end)
@@ -128,6 +161,37 @@ ContextActionService:BindAction("BrainrotSlap", onSlapAction, false, Enum.KeyCod
 hud.SlapButton.MouseButton1Click:Connect(function()
 	requestSlapEvent:FireServer()
 end)
+
+-- Golden conveyor banner: the server fires start/end around the window.
+goldenEvent.OnClientEvent:Connect(function(stage)
+	if stage == "start" then
+		hud.EventBanner.Visible = true
+		showNotification("GOLDEN CONVEYOR! Brainrots bought now earn DOUBLE!")
+	elseif stage == "end" then
+		hud.EventBanner.Visible = false
+		showNotification("The golden conveyor has cooled down.")
+	end
+end)
+
+-- T hides the rarity ladder, H hides the shop and boards (for screenshots).
+local function onToggleLadderAction(_, inputState)
+	if inputState == Enum.UserInputState.Begin then
+		hud.LadderPanel.Visible = not hud.LadderPanel.Visible
+	end
+	return Enum.ContextActionResult.Pass
+end
+ContextActionService:BindAction("BrainrotToggleLadder", onToggleLadderAction, false, Enum.KeyCode.T)
+
+local function onTogglePanelsAction(_, inputState)
+	if inputState == Enum.UserInputState.Begin then
+		local visible = not hud.ShopPanel.Visible
+		hud.ShopPanel.Visible = visible
+		hud.LeaderboardPanel.Visible = visible
+		hud.DefendersPanel.Visible = visible
+	end
+	return Enum.ContextActionResult.Pass
+end
+ContextActionService:BindAction("BrainrotTogglePanels", onTogglePanelsAction, false, Enum.KeyCode.H)
 
 -- Keep the camera over the shoulder of the player's character, looking
 -- down the conveyor toward the plaza, as a third-person 3D game should.
